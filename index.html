@@ -157,8 +157,8 @@ function doLogin(){
 }
 
 async function cargarRecorrido(){
-  var cfg=await sbGet('config','select=valor&clave=eq.cadete_recorrido_activo');
-  var activo=cfg&&cfg[0]&&cfg[0].valor==='true';
+  var cfg=await sbGet('config','select=value&key=eq.cadete_recorrido_activo');
+  var activo=cfg&&cfg[0]&&cfg[0].value==='true';
   
   if(!activo){
     document.getElementById('espera-screen').style.display='block';
@@ -170,9 +170,9 @@ async function cargarRecorrido(){
   document.getElementById('espera-screen').style.display='none';
   document.getElementById('header-estado').textContent='Recorrido activo';
   
-  var cfgRec=await sbGet('config','select=valor&clave=eq.cadete_recorrido_ids');
+  var cfgRec=await sbGet('config','select=value&key=eq.cadete_recorrido_ids');
   var ids=[];
-  try{ids=JSON.parse(cfgRec&&cfgRec[0]?cfgRec[0].valor:'[]');}catch(e){ids=[];}
+  try{ids=JSON.parse(cfgRec&&cfgRec[0]?cfgRec[0].value:'[]');}catch(e){ids=[];}
   
   if(ids.length===0){document.getElementById('pedidos-list').innerHTML='<div class="espera"><div class="espera-icon">📋</div><div class="espera-txt">No hay pedidos en el recorrido.</div></div>';return;}
   
