@@ -122,6 +122,10 @@ body{font-family:'Jost',sans-serif;background:var(--bg);color:var(--text);min-he
     <div class="wsp-msg" id="wsp-preview"></div>
     <button class="btn-enviar-wsp" onclick="enviarWspCadete()">📱 Enviar por WhatsApp</button>
     <button class="btn-cerrar-modal" onclick="cerrarModal()">Cancelar</button>
+    <div style="margin-top:12px;padding-top:10px;border-top:0.5px solid var(--border,#333)">
+      <div style="font-size:11px;color:var(--text3,#888);margin-bottom:5px">Mensajes enviados (últimas 24hs)</div>
+      <div id="wsp-msgs-list" style="display:flex;flex-direction:column;gap:5px;max-height:120px;overflow-y:auto"></div>
+    </div>
   </div>
 </div>
 
@@ -139,6 +143,32 @@ var wspMinutos=5;
 
 function sbH(extra){var h={'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json'};Object.assign(h,extra||{});return h;}
 async function sbGet(t,q){try{var r=await fetch(SUPA_URL+'/'+t+'?'+( q||''),{headers:sbH({})});return r.ok?await r.json():null;}catch(e){return null;}}
+async function sbInsert(t,d){try{var r=await fetch(SUPA_URL+'/'+t,{method:'POST',headers:sbH({'Prefer':'return=minimal'}),body:JSON.stringify(d)});return r.ok;}catch(e){return false;}}
+
+// ── MENSAJES TEMPORALES (WhatsApp, se borran solos a las 24hs) ──
+function registrarMensajeWA(pedidoId,remitente,texto){
+  var row={id:'msg_'+Date.now()+'_'+Math.floor(Math.random()*10000),pedido_id:pedidoId,remitente:remitente,texto:texto,hora:new Date().toISOString()};
+  sbInsert('mensajes_temp',row);
+}
+async function renderMensajesTempCadete(pedidoId){
+  var wrap=document.getElementById('wsp-msgs-list');
+  if(!wrap)return;
+  wrap.innerHTML='<div style="font-size:11px;color:#888">Cargando...</div>';
+  var cutoff=new Date(Date.now()-24*60*60*1000).toISOString();
+  try{await fetch(SUPA_URL+'/mensajes_temp?hora=lt.'+encodeURIComponent(cutoff),{method:'DELETE',headers:sbH()});}catch(e){}
+  var data=await sbGet('mensajes_temp','select=*&pedido_id=eq.'+encodeURIComponent(pedidoId)+'&order=hora.asc');
+  wrap.innerHTML='';
+  if(!data||data.length===0){wrap.innerHTML='<div style="font-size:11px;color:#888">Sin mensajes en las últimas 24hs</div>';return;}
+  data.forEach(function(m){
+    var row=document.createElement('div');
+    row.style.cssText='background:rgba(255,255,255,0.05);border-radius:7px;padding:7px 9px;font-size:12px';
+    var hdr=document.createElement('div');
+    hdr.style.cssText='display:flex;justify-content:space-between;color:#888;font-size:10px;margin-bottom:2px';
+    hdr.textContent=(m.remitente==='cadete'?'Vos':'Admin')+' · '+new Date(m.hora).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    var txt=document.createElement('div');txt.style.color='#ccc';txt.textContent=m.texto;
+    row.appendChild(hdr);row.appendChild(txt);wrap.appendChild(row);
+  });
+}
 async function sbPatch(t,q,d){try{var r=await fetch(SUPA_URL+'/'+t+'?'+q,{method:'PATCH',headers:sbH({'Prefer':'return=minimal'}),body:JSON.stringify(d)});return r.ok;}catch(e){return false;}}
 
 function doLogin(){
@@ -200,6 +230,9 @@ function renderRecorrido(){
 
     var num=document.createElement('div');num.className='pedido-num';
     num.textContent='Parada '+(i+1)+(p.horario_entrega?' - '+p.horario_entrega:'');card.appendChild(num);
+    if(p.horario_desde&&p.horario_hasta){var band=document.createElement('div');band.style.cssText='font-size:11px;color:var(--text3,#888);margin-bottom:2px';band.textContent='Ventana prometida: '+p.horario_desde+' a '+p.horario_hasta;card.appendChild(band);}
+    var punt=est==='entregado'?calcPuntualidad(p):null;
+    if(punt){var pb=document.createElement('div');pb.style.cssText='display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;color:#0f1923;background:'+punt.color+';margin-bottom:4px';pb.textContent=punt.label;card.appendChild(pb);}
     var nm=document.createElement('div');nm.className='pedido-nombre';nm.textContent=p.nombre;card.appendChild(nm);
     if(p.domicilio){var dom=document.createElement('div');dom.className='pedido-dom';dom.textContent='Direccion: '+p.domicilio+(p.ciudad?', '+p.ciudad:'');card.appendChild(dom);}
     var panes=p.panes?Object.entries(p.panes).filter(function(e){return e[1]>0;}).map(function(e){return e[1]+'x '+e[0];}).join(' - '):'';
@@ -246,9 +279,31 @@ function renderRecorrido(){
 
 
 async function cambiarStatus(id,status){
-  await sbPatch('pedidos','id=eq.'+id,{cadete_status:status});
-  var p=recorrido.find(function(x){return x.id===id;});if(p)p.cadete_status=status;
+  var patch={cadete_status:status};
+  if(status==='entregado')patch.hora_entregado=new Date().toISOString();
+  await sbPatch('pedidos','id=eq.'+id,patch);
+  var p=recorrido.find(function(x){return x.id===id;});
+  if(p){p.cadete_status=status;if(patch.hora_entregado)p.hora_entregado=patch.hora_entregado;}
   renderRecorrido();
+}
+
+// ── PUNTUALIDAD DE ENTREGA ────────────────────────────────────
+function minsHHMM(s){if(!s)return null;var pt=s.split(':');return parseInt(pt[0])*60+parseInt(pt[1]);}
+function calcPuntualidad(p){
+  if(!p.hora_entregado||!p.horario_desde||!p.horario_hasta)return null;
+  var d=new Date(p.hora_entregado);
+  var minEnt=d.getHours()*60+d.getMinutes();
+  var minDesde=minsHHMM(p.horario_desde),minHasta=minsHHMM(p.horario_hasta);
+  if(minDesde==null||minHasta==null)return null;
+  if(minEnt<minDesde){
+    var diffA=minDesde-minEnt;
+    if(diffA>=1)return{color:'#b39ddb',label:'Adelantado ('+diffA+' min)'};
+    return{color:'#4caf50',label:'A tiempo'};
+  }
+  if(minEnt<=minHasta)return{color:'#4caf50',label:'A tiempo'};
+  var diffL=minEnt-minHasta;
+  if(diffL<=5)return{color:'#ffc107',label:'Demora leve ('+diffL+' min)'};
+  return{color:'#f44336',label:'Con demora ('+diffL+' min)'};
 }
 
 function selPago(id,tipo){
@@ -286,6 +341,7 @@ function abrirModalWsp(id){
   wspPedidoActual=id;wspTipo='en camino';wspMinutos=5;
   document.getElementById('tiempo-section').style.display='block';
   actualizarPreviewWsp();
+  renderMensajesTempCadete(id);
   document.getElementById('modal-wsp').classList.add('open');
 }
 
@@ -318,6 +374,7 @@ function enviarWspCadete(){
   var tel=(p.telefono||'').replace(/\D/g,'');
   var msg=document.getElementById('wsp-preview').textContent;
   var url=tel?'https://wa.me/549'+tel+'?text='+encodeURIComponent(msg):'https://wa.me/?text='+encodeURIComponent(msg);
+  registrarMensajeWA(p.id,'cadete',msg);
   window.open(url,'_blank');
   cerrarModal();
 }
