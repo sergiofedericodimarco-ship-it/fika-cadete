@@ -81,9 +81,12 @@ body{font-family:'Jost',sans-serif;background:var(--bg);color:var(--text);min-he
       <div class="header-logo">FIKA</div>
       <div class="header-sub" id="header-fecha"></div>
     </div>
-    <div style="text-align:right">
-      <div style="font-size:12px;color:var(--text2)" id="header-user"></div>
-      <div style="font-size:10px;color:var(--text3)" id="header-estado"></div>
+    <div style="text-align:right;display:flex;align-items:center;gap:10px">
+      <button onclick="actualizarDatos()" id="btn-actualizar" style="background:transparent;border:1px solid var(--border2);color:var(--accent);border-radius:20px;padding:6px 12px;font-size:12px;font-family:'Raleway',sans-serif;cursor:pointer">&#8635; Actualizar</button>
+      <div>
+        <div style="font-size:12px;color:var(--text2)" id="header-user"></div>
+        <div style="font-size:10px;color:var(--text3)" id="header-estado"></div>
+      </div>
     </div>
   </div>
 
@@ -186,6 +189,13 @@ function doLogin(){
   setInterval(cargarRecorrido,30000);
 }
 
+async function actualizarDatos(){
+  var btn=document.getElementById('btn-actualizar');
+  if(btn){btn.textContent='Actualizando...';btn.disabled=true;}
+  await cargarRecorrido();
+  if(btn){btn.textContent='↻ Actualizar';btn.disabled=false;}
+}
+
 async function cargarRecorrido(){
   var cfg=await sbGet('config','select=value&key=eq.cadete_recorrido_activo');
   var activo=cfg&&cfg[0]&&cfg[0].value==='true';
@@ -228,15 +238,13 @@ function renderRecorrido(){
     card.className='pedido-card'+(est==='entregado'?' entregado':'');
     card.id='card-'+p.id;
 
-    var num=document.createElement('div');num.className='pedido-num';
-    num.textContent='Parada '+(i+1)+(p.horario_entrega?' - '+p.horario_entrega:'');card.appendChild(num);
+    var num=document.createElement('div');num.style.cssText='font-size:20px;font-weight:700;color:var(--accent);margin-bottom:3px';
+    num.textContent='Pedido '+(i+1)+(p.horario_entrega?' - '+p.horario_entrega:'');card.appendChild(num);
     if(p.horario_desde&&p.horario_hasta){var band=document.createElement('div');band.style.cssText='font-size:11px;color:var(--text3,#888);margin-bottom:2px';band.textContent='Ventana prometida: '+p.horario_desde+' a '+p.horario_hasta;card.appendChild(band);}
     var punt=est==='entregado'?calcPuntualidad(p):null;
     if(punt){var pb=document.createElement('div');pb.style.cssText='display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;color:#0f1923;background:'+punt.color+';margin-bottom:4px';pb.textContent=punt.label;card.appendChild(pb);}
     var nm=document.createElement('div');nm.className='pedido-nombre';nm.textContent=p.nombre;card.appendChild(nm);
     if(p.domicilio){var dom=document.createElement('div');dom.className='pedido-dom';dom.textContent='Direccion: '+p.domicilio+(p.ciudad?', '+p.ciudad:'');card.appendChild(dom);}
-    var panes=p.panes?Object.entries(p.panes).filter(function(e){return e[1]>0;}).map(function(e){return e[1]+'x '+e[0];}).join(' - '):'';
-    if(panes){var pe=document.createElement('div');pe.className='pedido-panes';pe.textContent=panes;card.appendChild(pe);}
 
     var sb=document.createElement('div');sb.className='status-bar';
     var bC=document.createElement('button');bC.className='btn-status btn-camino'+(est==='en_camino'?' active':'');bC.textContent='En camino';
