@@ -8,6 +8,7 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{--bg:#0f1923;--bg2:#162030;--bg3:#1c2a3d;--border:rgba(201,163,79,0.12);--border2:rgba(201,163,79,0.3);--text:#e8dfc8;--text2:rgba(232,223,200,0.65);--text3:rgba(232,223,200,0.3);--accent:#c9a34f;--ok:#5ab88a;--danger:#e05555}
+body.light-theme{--bg:#f7f3e8;--bg2:#ffffff;--bg3:#efe8d4;--border:rgba(120,90,30,0.15);--border2:rgba(120,90,30,0.35);--text:#2a2015;--text2:rgba(42,32,21,0.72);--text3:rgba(42,32,21,0.45);--accent:#9a7218;--ok:#2f8f5c;--danger:#c23d3d}
 body{font-family:'Jost',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 #login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px}
 .logo{font-size:32px;font-weight:600;color:var(--accent);letter-spacing:0.15em;margin-bottom:6px}
@@ -35,6 +36,8 @@ body{font-family:'Jost',sans-serif;background:var(--bg);color:var(--text);min-he
 .btn-camino.active{background:var(--accent);color:#0f1923}
 .btn-entregado{background:rgba(90,184,138,0.1);color:var(--ok);border:0.5px solid rgba(90,184,138,0.3)}
 .btn-entregado.active{background:var(--ok);color:#0f1923}
+.btn-no-entregado{background:rgba(224,85,85,0.1);color:var(--danger);border:0.5px solid rgba(224,85,85,0.3)}
+.btn-no-entregado.active{background:var(--danger);color:#0f1923}
 .acciones{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .btn-accion{padding:10px 8px;border-radius:10px;border:0.5px solid var(--border2);background:var(--bg3);color:var(--text2);font-family:'Jost',sans-serif;font-size:12px;cursor:pointer;text-align:center}
 .btn-accion.wsp{border-color:rgba(37,211,102,0.3);color:#25d366}
@@ -83,6 +86,7 @@ body{font-family:'Jost',sans-serif;background:var(--bg);color:var(--text);min-he
     </div>
     <div style="text-align:right;display:flex;align-items:center;gap:10px">
       <button onclick="actualizarDatos()" id="btn-actualizar" style="background:transparent;border:1px solid var(--border2);color:var(--accent);border-radius:20px;padding:6px 12px;font-size:12px;font-family:'Raleway',sans-serif;cursor:pointer">&#8635; Actualizar</button>
+      <button onclick="toggleTema()" id="btn-tema" style="background:transparent;border:1px solid var(--border2);color:var(--accent);border-radius:20px;padding:6px 10px;font-size:14px;cursor:pointer">&#9788;</button>
       <div>
         <div style="font-size:12px;color:var(--text2)" id="header-user"></div>
         <div style="font-size:10px;color:var(--text3)" id="header-estado"></div>
@@ -98,10 +102,13 @@ body{font-family:'Jost',sans-serif;background:var(--bg);color:var(--text);min-he
     <div id="pedidos-list"></div>
   </div>
 
-  <div class="resumen-bar" id="resumen-bar" style="display:none">
-    <div class="res-item"><span class="res-val" id="res-total">0</span>pedidos</div>
-    <div class="res-item"><span class="res-val" id="res-entregados">0</span>entregados</div>
-    <div class="res-item"><span class="res-val" id="res-efectivo">$0</span>efectivo</div>
+  <div class="resumen-bar" id="resumen-bar" style="display:none;flex-direction:column;gap:8px">
+    <div style="display:flex;gap:12px;justify-content:center">
+      <div class="res-item"><span class="res-val" id="res-total">0</span>pedidos</div>
+      <div class="res-item"><span class="res-val" id="res-entregados">0</span>entregados</div>
+      <div class="res-item"><span class="res-val" id="res-efectivo">$0</span>efectivo</div>
+    </div>
+    <button id="btn-finalizar" onclick="document.getElementById('modal-finalizar').classList.add('open')" style="background:var(--accent);border:none;border-radius:20px;padding:10px;color:#0f1923;font-family:'Jost',sans-serif;font-weight:600;font-size:13px;cursor:pointer">Finalizar recorrido</button>
   </div>
 </div>
 
@@ -129,6 +136,26 @@ body{font-family:'Jost',sans-serif;background:var(--bg);color:var(--text);min-he
       <div style="font-size:11px;color:var(--text3,#888);margin-bottom:5px">Mensajes enviados (últimas 24hs)</div>
       <div id="wsp-msgs-list" style="display:flex;flex-direction:column;gap:5px;max-height:120px;overflow-y:auto"></div>
     </div>
+  </div>
+</div>
+
+<!-- MODAL NO ENTREGADO -->
+<div class="modal-overlay" id="modal-no-entregado">
+  <div class="modal-box">
+    <div class="modal-title">¿Por qué no se entregó?</div>
+    <textarea id="motivo-no-entrega" placeholder="Ej: no atendieron, dirección incorrecta, cliente pidió reprogramar..." style="width:100%;min-height:90px;background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;color:var(--text);font-family:'Raleway',sans-serif;font-size:13px;padding:10px;margin-bottom:12px"></textarea>
+    <button class="btn-enviar-wsp" style="background:var(--danger)" onclick="confirmarNoEntregado()">Confirmar no entregado</button>
+    <button class="btn-cerrar-modal" onclick="cerrarModalNoEntregado()">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL FINALIZAR RECORRIDO -->
+<div class="modal-overlay" id="modal-finalizar">
+  <div class="modal-box">
+    <div class="modal-title">¿Finalizar recorrido?</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Una vez finalizado no vas a poder modificar más los pedidos de hoy, y se le va a enviar un resumen por WhatsApp a la administración.</div>
+    <button class="btn-enviar-wsp" onclick="confirmarFinalizarRecorrido()">Sí, finalizar y enviar resumen</button>
+    <button class="btn-cerrar-modal" onclick="document.getElementById('modal-finalizar').classList.remove('open')">Cancelar</button>
   </div>
 </div>
 
@@ -173,6 +200,44 @@ async function renderMensajesTempCadete(pedidoId){
   });
 }
 async function sbPatch(t,q,d){try{var r=await fetch(SUPA_URL+'/'+t+'?'+q,{method:'PATCH',headers:sbH({'Prefer':'return=minimal'}),body:JSON.stringify(d)});return r.ok;}catch(e){return false;}}
+async function sbSetConfig(clave,valor){
+  var ex=await sbGet('config','select=key&key=eq.'+encodeURIComponent(clave));
+  if(ex&&ex.length>0){await sbPatch('config','key=eq.'+encodeURIComponent(clave),{value:valor});}
+  else{await sbInsert('config',{key:clave,value:valor});}
+}
+
+var recorridoFinalizadoLocal=false;
+async function confirmarFinalizarRecorrido(){
+  document.getElementById('modal-finalizar').classList.remove('open');
+  var entregados=recorrido.filter(function(p){return p.cadete_status==='entregado';});
+  var noEntregados=recorrido.filter(function(p){return p.cadete_status==='no_entregado';});
+  var pendientes=recorrido.filter(function(p){return p.cadete_status!=='entregado'&&p.cadete_status!=='no_entregado';});
+  var efectivo=0,transferencia=0;
+  recorrido.forEach(function(p){
+    if(p.cadete_pago){
+      try{var pg=typeof p.cadete_pago==='string'?JSON.parse(p.cadete_pago):p.cadete_pago;
+        if(pg&&pg.tipo==='efectivo')efectivo+=parseInt(pg.monto)||0;
+        if(pg&&pg.tipo==='transferencia')transferencia+=parseInt(pg.monto)||0;
+      }catch(e){}
+    }
+  });
+  var fecha=new Date().toLocaleDateString('es-AR');
+  var txt='RESUMEN DE RECORRIDO - '+fecha+'\n\n';
+  txt+='Total de pedidos: '+recorrido.length+'\n';
+  txt+='Entregados: '+entregados.length+'\n';
+  txt+='No entregados: '+noEntregados.length+'\n';
+  if(pendientes.length>0)txt+='Sin resolver: '+pendientes.length+'\n';
+  txt+='\nCobrado en efectivo: $'+efectivo.toLocaleString('es-AR')+'\n';
+  txt+='Cobrado por transferencia: $'+transferencia.toLocaleString('es-AR')+'\n';
+  if(noEntregados.length>0){
+    txt+='\nPedidos NO entregados:\n';
+    noEntregados.forEach(function(p){txt+='- '+p.nombre+': '+(p.motivo_no_entrega||'sin motivo')+'\n';});
+  }
+  await sbSetConfig('cadete_recorrido_finalizado','true');
+  recorridoFinalizadoLocal=true;
+  renderRecorrido();
+  window.open('https://wa.me/5493813499797?text='+encodeURIComponent(txt),'_blank');
+}
 
 function doLogin(){
   var u=document.getElementById('login-user').value.trim();
@@ -196,6 +261,20 @@ async function actualizarDatos(){
   if(btn){btn.textContent='↻ Actualizar';btn.disabled=false;}
 }
 
+function toggleTema(){
+  var claro=document.body.classList.toggle('light-theme');
+  localStorage.setItem('fika-cadete-tema',claro?'claro':'oscuro');
+  document.getElementById('btn-tema').innerHTML=claro?'&#9789;':'&#9788;';
+}
+(function(){
+  if(localStorage.getItem('fika-cadete-tema')==='claro'){
+    document.body.classList.add('light-theme');
+    document.addEventListener('DOMContentLoaded',function(){
+      var b=document.getElementById('btn-tema');if(b)b.innerHTML='&#9789;';
+    });
+  }
+})();
+
 async function cargarRecorrido(){
   var cfg=await sbGet('config','select=value&key=eq.cadete_recorrido_activo');
   var activo=cfg&&cfg[0]&&cfg[0].value==='true';
@@ -209,7 +288,10 @@ async function cargarRecorrido(){
   }
   document.getElementById('espera-screen').style.display='none';
   document.getElementById('header-estado').textContent='Recorrido activo';
-  
+
+  var cfgFin=await sbGet('config','select=value&key=eq.cadete_recorrido_finalizado');
+  recorridoFinalizadoLocal=!!(cfgFin&&cfgFin[0]&&cfgFin[0].value==='true');
+
   var cfgRec=await sbGet('config','select=value&key=eq.cadete_recorrido_ids');
   var ids=[];
   try{ids=JSON.parse(cfgRec&&cfgRec[0]?cfgRec[0].value:'[]');}catch(e){ids=[];}
@@ -237,6 +319,8 @@ function renderRecorrido(){
     var card=document.createElement('div');
     card.className='pedido-card'+(est==='entregado'?' entregado':'');
     card.id='card-'+p.id;
+    var bloqueado=recorridoFinalizadoLocal&&!p.edicion_habilitada;
+    if(bloqueado){var lock=document.createElement('div');lock.style.cssText='display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:var(--bg3);color:var(--text3);margin-bottom:6px';lock.textContent='🔒 Recorrido finalizado - pedile a admin que te habilite este pedido para editarlo';card.appendChild(lock);}
 
     var num=document.createElement('div');num.style.cssText='font-size:20px;font-weight:700;color:var(--accent);margin-bottom:3px';
     num.textContent='Pedido '+(i+1)+(p.horario_entrega?' - '+p.horario_entrega:'');card.appendChild(num);
@@ -251,7 +335,9 @@ function renderRecorrido(){
     (function(id){bC.onclick=function(){cambiarStatus(id,'en_camino');};})(p.id);
     var bE=document.createElement('button');bE.className='btn-status btn-entregado'+(est==='entregado'?' active':'');bE.textContent='Entregado';
     (function(id){bE.onclick=function(){cambiarStatus(id,'entregado');};})(p.id);
-    sb.appendChild(bC);sb.appendChild(bE);card.appendChild(sb);
+    var bN=document.createElement('button');bN.className='btn-status btn-no-entregado'+(est==='no_entregado'?' active':'');bN.textContent='No entregado';
+    (function(id){bN.onclick=function(){abrirModalNoEntregado(id);};})(p.id);
+    sb.appendChild(bC);sb.appendChild(bE);sb.appendChild(bN);card.appendChild(sb);
 
     var acc=document.createElement('div');acc.className='acciones';
     var bW=document.createElement('button');bW.className='btn-accion wsp';bW.textContent='WhatsApp';
@@ -276,6 +362,7 @@ function renderRecorrido(){
 
     var bg=document.createElement('button');bg.className='btn-guardar';bg.textContent='Guardar';
     (function(id){bg.onclick=function(){guardarTodo(id);};})(p.id);card.appendChild(bg);
+    if(bloqueado){[bC,bE,bN,bT,bEf,mn,cm,bg].forEach(function(el){el.disabled=true;el.style.opacity='0.4';el.style.pointerEvents='none';});}
     lista.appendChild(card);
   });
 
@@ -283,16 +370,51 @@ function renderRecorrido(){
   document.getElementById('res-total').textContent=recorrido.length;
   document.getElementById('res-entregados').textContent=entregados;
   document.getElementById('res-efectivo').textContent='$'+totalEfectivo.toLocaleString('es-AR');
+  var bf=document.getElementById('btn-finalizar');
+  if(bf){
+    if(recorridoFinalizadoLocal){bf.textContent='Recorrido finalizado';bf.disabled=true;bf.style.opacity='0.5';}
+    else{bf.textContent='Finalizar recorrido';bf.disabled=false;bf.style.opacity='1';}
+  }
 }
 
 
-async function cambiarStatus(id,status){
+async function cambiarStatus(id,status,motivo){
   var patch={cadete_status:status};
   if(status==='entregado')patch.hora_entregado=new Date().toISOString();
+  if(status==='no_entregado')patch.motivo_no_entrega=motivo||'';
   await sbPatch('pedidos','id=eq.'+id,patch);
   var p=recorrido.find(function(x){return x.id===id;});
-  if(p){p.cadete_status=status;if(patch.hora_entregado)p.hora_entregado=patch.hora_entregado;}
+  if(p){p.cadete_status=status;if(patch.hora_entregado)p.hora_entregado=patch.hora_entregado;if(motivo!==undefined)p.motivo_no_entrega=motivo;}
   renderRecorrido();
+  notificarEstadoAdmin(p,status);
+}
+
+var _pedidoNoEntregaActual=null;
+function abrirModalNoEntregado(id){
+  _pedidoNoEntregaActual=id;
+  document.getElementById('motivo-no-entrega').value='';
+  document.getElementById('modal-no-entregado').classList.add('open');
+}
+function cerrarModalNoEntregado(){document.getElementById('modal-no-entregado').classList.remove('open');}
+function confirmarNoEntregado(){
+  var motivo=document.getElementById('motivo-no-entrega').value.trim();
+  if(!motivo){alert('Escribí el motivo antes de confirmar.');return;}
+  cambiarStatus(_pedidoNoEntregaActual,'no_entregado',motivo);
+  cerrarModalNoEntregado();
+}
+
+// Aviso a la app principal: se guarda un registro liviano que la app principal puede leer al actualizar
+function notificarEstadoAdmin(p,status){
+  if(!p||(status!=='entregado'&&status!=='no_entregado'))return;
+  sbInsert('notificaciones_cadete',{
+    id:'ntf_'+Date.now()+'_'+Math.floor(Math.random()*10000),
+    pedido_id:p.id,
+    nombre:p.nombre||'',
+    estado:status,
+    motivo:status==='no_entregado'?(p.motivo_no_entrega||''):null,
+    hora:new Date().toISOString(),
+    vista:false
+  });
 }
 
 // ── PUNTUALIDAD DE ENTREGA ────────────────────────────────────
